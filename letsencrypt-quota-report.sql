@@ -34,13 +34,16 @@
 --
 WITH
 quota_interval AS (
-    SELECT (%(timespan)s)::interval AS quota_interval
+    SELECT
+        (%(timespan)s)::interval AS quota_interval,
+        current_timestamp AS quota_window_end
 ),
 quota_window AS (
     SELECT
         qi.quota_interval,
         -- lets encrypt quota uses hourly chunking
-        date_trunc('hour', (current_timestamp - qi.quota_interval) AT TIME ZONE 'UTC') AS quota_window_lowbound
+        date_trunc('hour', (qi.quota_window_end - qi.quota_interval) AT TIME ZONE 'UTC') AS quota_window_lowbound,
+        date_trunc('hour', qi.quota_window_end AT TIME ZONE 'UTC') + INTERVAL '1' HOUR AS quota_window_highbound
     FROM quota_interval qi
 ),
 certs_issued_for_domain AS (
@@ -135,7 +138,7 @@ recent_certs_renewals AS (
     SELECT *
     FROM certs_issued_for_domain
     CROSS JOIN quota_window qw
-    WHERE not_before >= qw.quota_window_lowbound
+    WHERE not_before BETWEEN qw.quota_window_lowbound AND quota_window_highbound
   ) AS cert_in_quota_window
   -- Left self join to find whether any recently issued older certificate
   -- exists for the same subject so we can compute the is_renewal field
@@ -169,11 +172,11 @@ recent_certs_renewals AS (
 SELECT
   qw.quota_interval,
   qw.quota_window_lowbound AS quota_lowbound_utc,
-  date_trunc('second', current_timestamp AT TIME ZONE 'UTC') AS quota_highbound_utc,
+  qw.quota_window_highbound AS quota_highbound_utc,
   count(1) FILTER (WHERE NOT is_renewal) AS newissued,
   count(1) FILTER (WHERE is_renewal) AS renewals
 FROM recent_certs_renewals
 CROSS JOIN quota_window qw
-GROUP BY 1, 2;
+GROUP BY 1, 2, 3;
 
 -- vim: sw=4 ts=4 ai et ft=sql syn=sql si
