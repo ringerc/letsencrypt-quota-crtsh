@@ -56,11 +56,15 @@ certs_issued_for_domain AS (
   FROM certificate c
   -- Each cert gets logged twice - once as a pre-certificate, once as a
   -- final cert. The pre-certificate has this x.509 extension marked
-  -- critical and clients must reject the cert if it's present. We're
-  -- not interested in these pre-certificates so we can filter them out.
+  -- critical and clients must reject the cert if it's present. While
+  -- the Lets Encrypt quota only applies on final certs, the final
+  -- certs are delayed several days in the cert transparency log,
+  -- so we have to use the pre-certs for quota checking purposes.
+  -- There's one pre-cert for every final cert, so it works out
+  -- the same.
   INNER JOIN LATERAL 
         x509_hasExtension(c.CERTIFICATE, '1.3.6.1.4.1.11129.2.4.3', true) precert_status(is_precertificate)
-    ON (NOT precert_status.is_precertificate)
+    ON (precert_status.is_precertificate)
   -- Grab the cert's CN. Because this is only one of the names for certs
   -- with multiple domains, we can't use it to match on anything, but
   -- it's useful for diagnostics and reporting.
@@ -130,6 +134,7 @@ recent_certs_renewals AS (
   SELECT  cert_in_quota_window.issuer_ca_id,
           cert_in_quota_window.certificate_id,
           cert_in_quota_window.common_name,
+          cert_in_quota_window.fqdn_set,
           cert_in_quota_window.not_before,
           cert_in_quota_window.not_after,
           c2.certificate_id IS NOT NULL AS is_renewal
@@ -173,8 +178,12 @@ SELECT
   qw.quota_interval,
   qw.quota_window_lowbound AS quota_lowbound_utc,
   qw.quota_window_highbound AS quota_highbound_utc,
+  count(1) AS totalcerts,
   count(1) FILTER (WHERE NOT is_renewal) AS newissued,
-  count(1) FILTER (WHERE is_renewal) AS renewals
+  count(1) FILTER (WHERE is_renewal) AS renewals,
+  min(not_before) AS oldest_cert_in_window,
+  max(not_before) AS newest_cert_in_window,
+  qw.quota_window_highbound - max(not_before) AS age_of_newest_before_window
 FROM recent_certs_renewals
 CROSS JOIN quota_window qw
 GROUP BY 1, 2, 3;
