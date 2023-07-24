@@ -3,6 +3,15 @@
 Query to check [Let's Encrypt](https://letsencrypt.org/) quota usage against the
 [crt.sh](http://crt.sh) public certificate transparency database.
 
+----
+
+**UPDATE**: Per [Boulder issue 5545](https://github.com/letsencrypt/boulder/issues/5545),
+Let's Encrypt are workiing on a new quota system. This will hopefully obsolete
+this hack of a script if it makes exposing a public API for quota usage
+feasible.
+
+----
+
 [`letsencrypt-quota-report.sql`](./letsencrypt-quota-report.sql)
 
 ## Let's Encrypt certificates per registered domain quota
@@ -80,6 +89,10 @@ postgres extension.
 
 ## See also
 
+* [`crt.sh` discussion threads]:
+  * [Detecting and excluding Let's Encrypt renewals](https://groups.google.com/g/crtsh/c/eLYR6hXej0o/m/JvIIS2xdAwAJ)
+  * [Fix for inefficient pre-certificate de-duplication logic](https://groups.google.com/g/crtsh/c/VcIC2YHlwl4/m/spYUBzJUAwAJ)
+  * [Efficiently matching FQDN sets](https://groups.google.com/g/crtsh/c/e3dy_r_y8dw/m/G8SOxMidAwAJ)
 * [Let's Encrypt rate limits](https://letsencrypt.org/docs/rate-limits/)
 * [`crt.sh`](http://crt.sh)
   * [`crt.sh` queries](https://github.com/crtsh/certwatch_db/blob/master/fnc/web_apis.fnc)
